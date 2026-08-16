@@ -1,7 +1,8 @@
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
 from models import NewsArticle
+from news_repository import save_news_article
 
 
 CS_KEYWORDS = [
@@ -87,7 +88,10 @@ def get_top_stories(limit=30):
 
 
 def convert_to_news_article(story):
-    published_time = datetime.fromtimestamp(story.get("time", 0))
+    published_time = datetime.fromtimestamp(
+        story.get("time", 0),
+        tz = timezone.utc
+    )
 
     article = NewsArticle(
         title=story.get("title", "Unknown title"),
@@ -124,4 +128,8 @@ if __name__ == "__main__":
         print(f"   Score: {article.score}")
         print(f"   Published: {article.published_at}")
         print(f"   URL: {article.url}")
+
+        save_news_article(article)
+
+        print("   Saved to database!")
         print()
