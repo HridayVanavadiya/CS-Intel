@@ -11,3 +11,4 @@ class NewsArticle:
     published_at: datetime
     score: int
     category: str
+    relevance_score: int
