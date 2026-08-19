@@ -16,9 +16,10 @@ def save_news_article(article: NewsArticle):
                 author,
                 published_at,
                 score,
-                category
+                category,
+                relevance_score
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (url) DO NOTHING;
         """
 
@@ -32,6 +33,7 @@ def save_news_article(article: NewsArticle):
                 article.published_at,
                 article.score,
                 article.category,
+                article.relevance_score,
             ),
         )
 
