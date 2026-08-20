@@ -88,6 +88,10 @@ if __name__ == "__main__":
 
             analysis = analyze_article(title, url)
 
+            if analysis is None:
+                print("WARNING: AI analysis returned None. Skipping this article.")
+                continue
+
             print(f"Category: {analysis.category}")
             print(f"Importance: {analysis.importance_score}/10")
             print(f"Tags: {analysis.tags}")

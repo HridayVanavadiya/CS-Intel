@@ -1,23 +1,24 @@
 import os
 import json
-import time
 
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from pydantic import BaseModel
 
 
 load_dotenv()
 
 
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("OPENROUTER_API_KEY")
 
 if not api_key:
-    raise ValueError("GEMINI_API_KEY was not found in .env")
+    raise ValueError("OPENROUTER_API_KEY was not found in .env")
 
 
-client = genai.Client(api_key=api_key)
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=api_key,
+)
 
 
 class ArticleAnalysis(BaseModel):
@@ -32,7 +33,8 @@ class ArticleAnalysis(BaseModel):
 def analyze_article(title, url):
 
     prompt = f"""
-You are the AI analyst for a Computer Science intelligence platform called CS Intel.
+You are the AI analyst for a Computer Science intelligence platform
+called CS Intel.
 
 Analyze this article:
 
@@ -42,69 +44,136 @@ TITLE:
 URL:
 {url}
 
-Determine whether this article is genuinely relevant to Computer Science,
-software engineering, AI, cybersecurity, cloud computing, programming,
-databases, networking, hardware, or related technology.
+Determine whether this article is genuinely relevant to Computer Science.
 
-Important:
-- Do not invent information that is not supported by the title.
-- If the title is insufficient to know something, keep the explanation general.
-- importance_score must be between 1 and 10.
-- Return the requested structured fields.
+Relevant areas include:
+
+- Artificial Intelligence
+- Machine Learning
+- Generative AI
+- Software Engineering
+- Programming
+- Programming Languages
+- Cybersecurity
+- Cloud Computing
+- Databases
+- Computer Networks
+- Operating Systems
+- Distributed Systems
+- Computer Architecture
+- Hardware
+- Robotics
+- Developer Tools
+- Open Source
+- Computer Science Research
+
+Return ONLY valid JSON.
+
+Do NOT use Markdown.
+Do NOT use ```json.
+Do NOT add explanations before or after the JSON.
+
+The JSON must have exactly these fields:
+
+{{
+    "is_cs_related": true,
+    "category": "Artificial Intelligence",
+    "summary": "A concise 2-3 sentence summary.",
+    "importance_score": 7,
+    "tags": ["AI", "Machine Learning", "Software Engineering"],
+    "why_it_matters": "Explain why this matters to CS students, developers, researchers, or technology professionals."
+}}
+
+Rules:
+
+1. is_cs_related:
+   - true if genuinely related to Computer Science
+   - false if unrelated
+
+2. category:
+   - Choose the most appropriate category.
+
+3. summary:
+   - Give a concise 2-3 sentence summary.
+   - Do not invent information.
+
+4. importance_score:
+   - Integer from 1 to 10.
+   - 10 = extremely important for CS professionals.
+   - 1 = very low importance.
+
+5. tags:
+   - Provide 3-5 relevant technical tags.
+
+6. why_it_matters:
+   - Briefly explain why the article matters.
+
+Use only information reasonably supported by the title and URL.
 """
 
-    max_retries = 3
 
-    for attempt in range(max_retries):
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-20b:free",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        response_format={
+            "type": "json_object"
+        },
+    )
 
-        try:
+    text = response.choices[0].message.content
 
-            response = client.models.generate_content(
-                model="gemini-2.5-flash-lite",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=ArticleAnalysis,
-                ),
-            )
+    if not text:
+        raise ValueError("OpenRouter returned an empty response.")
 
-            break
+    text = text.strip()
 
-        except Exception as error:
+    # Remove Markdown code fences if the model adds them
+    if text.startswith("```json"):
+        text = text[7:]
 
-            if "503" in str(error) or "UNAVAILABLE" in str(error):
+    elif text.startswith("```"):
+        text = text[3:]
 
-                if attempt < max_retries - 1:
+    if text.endswith("```"):
+        text = text[:-3]
 
-                    wait_time = 5 * (2 ** attempt)
+    text = text.strip()
 
-                    print(
-                        f"Gemini temporarily unavailable. "
-                        f"Retrying in {wait_time} seconds..."
-                    )
+    try:
 
-                    time.sleep(wait_time)
+        data = json.loads(text)
 
-                else:
-                    raise
+        return ArticleAnalysis.model_validate(data)
 
-            else:
-                raise
+    except json.JSONDecodeError as error:
 
-    if not response.text:
+        print("\nWARNING: Model did not return valid JSON.")
+        print("Raw model response:")
+        print(text)
+
         raise ValueError(
-            "Gemini returned an empty response. "
-            f"Response object: {response}"
+            f"Invalid JSON returned by OpenRouter: {error}"
         )
 
-    return ArticleAnalysis.model_validate_json(response.text)
+    except Exception as error:
+
+        print("\nWARNING: AI response failed validation.")
+        print("Raw model response:")
+        print(text)
+
+        raise
 
 
 if __name__ == "__main__":
 
     result = analyze_article(
-        "Turbovec - Google's TurboQuant for vector search in Rust",
-        "https://github.com/RyanCodrai/turbovec"
+        "Rethinking Database Programming",
+        "https://acadia.engineering/blog/rethinking-database-programming"
     )
 
     print("\n===== AI ANALYSIS =====\n")
